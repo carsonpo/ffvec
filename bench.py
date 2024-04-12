@@ -4,98 +4,77 @@ import numpy as np
 import time
 from tqdm.auto import tqdm
 
+def benchmark_indices(num_docs):
+    np.random.seed(0)
+    dimension = 384
+    embeddings = np.random.rand(num_docs, dimension).astype('float32')
 
-np.random.seed(0)
-dimension = 384
-num_docs = 100000
-embeddings = np.random.rand(num_docs, dimension).astype("float32")
+    # FFVec Index
+    vs = ffvec.VectorSet()
+    metadata = [{}] * num_docs
+    for i in range(num_docs):
+        vs.add(embeddings[i].tolist(), metadata[i])
 
-# Initialize ffvec
-vs = ffvec.VectorSet()
-metadata = [{}] * num_docs
-for i in range(num_docs):
-    vs.add(embeddings[i].tolist(), metadata[i])
+    # FAISS Flat Index
+    index_flat = faiss.IndexFlatL2(dimension)
+    index_flat.add(embeddings)
 
-# Initialize FAISS Flat index
-index_flat = faiss.IndexFlatL2(dimension)
-index_flat.add(embeddings)
+    # FAISS HNSW Index
+    index_hnsw = faiss.IndexHNSWFlat(dimension, 32)
+    index_hnsw.hnsw.efConstruction = 200
+    
 
-
-# Initialize FAISS HNSW index
-index_hnsw = faiss.IndexHNSWFlat(dimension, 32)  # M = 32 by default
-index_hnsw.hnsw.efConstruction = 200  # Can be tuned for better accuracy
-# index_hnsw.add(embeddings)
-
-for i in tqdm(range(0, num_docs, 1000)):
-    index_hnsw.add(embeddings[i : i + 1000])
+    for i in tqdm(range(0, num_docs, 10_000)):
+        index_hnsw.add(embeddings[i:i+10_000])
 
 
-nlist = 100  # Number of clusters
-m = 8  # The number of sub-vector quantizers
-quantizer = faiss.IndexFlatL2(dimension)  # the quantizer
-index_ivfpq = faiss.IndexIVFPQ(
-    quantizer, dimension, nlist, m, 8
-)  # 8 bits per sub-vector
-index_ivfpq.train(embeddings)  # Training on the dataset
-index_ivfpq.add(embeddings)  # Add embeddings to the index
+    # FAISS IVFPQ Index
+    nlist = 100
+    m = 8
+    quantizer = faiss.IndexFlatL2(dimension)
+    index_ivfpq = faiss.IndexIVFPQ(quantizer, dimension, nlist, m, 8)
+    index_ivfpq.train(embeddings[0:10_000])
+    # index_ivfpq.add(embeddings)
 
-# Prepare query vector (also simulated)
-query_vec = np.random.rand(1, dimension).astype("float32")
+    for i in tqdm(range(0, num_docs, 10_000)):
+        index_ivfpq.add(embeddings[i:i+10_000])
 
-# Benchmark ffvec
-start_ffvec = time.perf_counter()
-for _ in range(100):
-    vs_out = vs.query_with_metadata(query_vec[0].tolist(), {}, 2)
-time_ffvec = (time.perf_counter() - start_ffvec) / 100.0 * 1000
+    # Prepare query vector
+    query_vec = np.random.rand(1, dimension).astype('float32')
 
-# Benchmark FAISS Flat
-start_faiss_flat = time.perf_counter()
-for _ in range(100):
-    D_flat, I_flat = index_flat.search(query_vec, 2)
-time_faiss_flat = (time.perf_counter() - start_faiss_flat) / 100.0 * 1000
+    for index_type, index in [('ffvec', vs), ('FAISS Flat', index_flat), ('FAISS HNSW', index_hnsw), ('FAISS IVFPQ', index_ivfpq)]:
+        start_time = time.perf_counter()
+        if index_type == 'ffvec':
+            for _ in range(100):
+                vs_out = vs.advanced_query(query_vec[0].tolist(), {}, 2)
+        else:
+            for _ in range(100):
+                if index_type == 'FAISS IVFPQ':
+                    index.nprobe = 10
+                D, I = index.search(query_vec, 2)
+        elapsed_time = (time.perf_counter() - start_time) / 100.0 * 1000
 
-# Benchmark FAISS HNSW
-start_faiss_hnsw = time.perf_counter()
-for _ in range(100):
-    D_hnsw, I_hnsw = index_hnsw.search(query_vec, 2)
-time_faiss_hnsw = (time.perf_counter() - start_faiss_hnsw) / 100.0 * 1000
+    # Benchmarking
+    results = {}
+    for index_type, index in [('ffvec', vs), ('FAISS Flat', index_flat), ('FAISS HNSW', index_hnsw), ('FAISS IVFPQ', index_ivfpq)]:
+        start_time = time.perf_counter()
+        if index_type == 'ffvec':
+            for _ in range(100):
+                vs_out = vs.advanced_query(query_vec[0].tolist(), {}, 2)
+        else:
+            for _ in range(100):
+                if index_type == 'FAISS IVFPQ':
+                    index.nprobe = 10
+                D, I = index.search(query_vec, 2)
+        elapsed_time = (time.perf_counter() - start_time) / 100.0 * 1000
+        results[index_type] = elapsed_time
 
+    return results
 
-# Benchmark FAISS IVFPQ
-start_faiss_ivfpq = time.perf_counter()
-for _ in range(100):
-    index_ivfpq.nprobe = 10  # Number of clusters to visit, can be tuned
-    D_ivfpq, I_ivfpq = index_ivfpq.search(query_vec, 2)
-time_faiss_ivfpq = (time.perf_counter() - start_faiss_ivfpq) / 100.0 * 1000
-
-# Benchmark ffvec
-start_ffvec = time.perf_counter()
-for _ in range(100):
-    vs_out = vs.query_with_metadata(query_vec[0].tolist(), {"genre": "sci-fi"}, 2)
-time_ffvec = (time.perf_counter() - start_ffvec) / 100.0 * 1000
-
-# Benchmark FAISS Flat
-start_faiss_flat = time.perf_counter()
-for _ in range(100):
-    D_flat, I_flat = index_flat.search(query_vec, 2)
-time_faiss_flat = (time.perf_counter() - start_faiss_flat) / 100.0 * 1000
-
-# Benchmark FAISS HNSW
-start_faiss_hnsw = time.perf_counter()
-for _ in range(100):
-    D_hnsw, I_hnsw = index_hnsw.search(query_vec, 2)
-time_faiss_hnsw = (time.perf_counter() - start_faiss_hnsw) / 100.0 * 1000
-
-
-# Benchmark FAISS IVFPQ
-start_faiss_ivfpq = time.perf_counter()
-for _ in range(100):
-    index_ivfpq.nprobe = 10  # Number of clusters to visit, can be tuned
-    D_ivfpq, I_ivfpq = index_ivfpq.search(query_vec, 2)
-time_faiss_ivfpq = (time.perf_counter() - start_faiss_ivfpq) / 100.0 * 1000
-
-# Print results
-print(f"FFVec Query Average Time: {time_ffvec:.2f}ms")
-print(f"FAISS Flat Query Average Time: {time_faiss_flat:.2f}ms")
-print(f"FAISS HNSW Query Average Time: {time_faiss_hnsw:.2f}ms")
-print(f"FAISS IVFPQ Query Average Time: {time_faiss_ivfpq:.2f}ms")
+# Main loop to run benchmarks with different numbers of vectors
+doc_sizes = [100_000, 500_000, 1_000_000, 5_000_000, 10_000_000]  # Example sizes
+for num_docs in doc_sizes:
+    print(f"Benchmarking with {num_docs} documents")
+    result = benchmark_indices(num_docs)
+    for k, v in result.items():
+        print(f"{k} Query Average Time: {v:.2f}ms")
