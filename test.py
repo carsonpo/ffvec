@@ -1,7 +1,6 @@
 import ffvec
 import openai
 import time
-import numpy as np
 
 
 vs = ffvec.VectorSet()

@@ -386,7 +386,7 @@ static PyObject *ffvec_add_py(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyObject *ffvec_query_with_metadata_py(PyObject *self, PyObject *args)
+static PyObject *ffvec_query_py(PyObject *self, PyObject *args)
 {
     VectorSet *set = (VectorSet *)self;
     PyObject *query_obj, *metadata_filters;
@@ -667,7 +667,7 @@ static PyObject *ffvec_advanced_query_py(PyObject *self, PyObject *args)
 
 static PyMethodDef VectorSet_methods[] = {
     {"add", (PyCFunction)ffvec_add_py, METH_VARARGS, "Add a vector to the set"},
-    {"query_with_metadata", (PyCFunction)ffvec_query_with_metadata_py, METH_VARARGS, "Query the vector set based on Hamming distance and metadata filters"},
+    {"query", (PyCFunction)ffvec_query_py, METH_VARARGS, "Query the vector set based on Hamming distance and metadata filters"},
     {"advanced_query", (PyCFunction)ffvec_advanced_query_py, METH_VARARGS, "Query the vector set based on Hamming distance and metadata filters"},
     {NULL}};
 

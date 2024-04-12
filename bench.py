@@ -2,7 +2,6 @@ import ffvec
 import faiss
 import numpy as np
 import time
-import openai
 from tqdm.auto import tqdm
 
 
