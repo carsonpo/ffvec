@@ -473,7 +473,14 @@ static PyObject *ffvec_query_with_metadata_py(PyObject *self, PyObject *args)
     free(query_vec);
     free(quantized_query);
 
-    PyObject *result_list = PyList_New(0);
+    PyObject *metadata_list = PyList_New(0);
+    if (!metadata_list)
+    {
+        free(filtered_indices);
+        free(distances);
+        return PyErr_NoMemory();
+    }
+
     for (size_t i = 0; i < top_k && i < filtered_size; i++)
     {
         size_t min_idx = 0;
@@ -486,14 +493,24 @@ static PyObject *ffvec_query_with_metadata_py(PyObject *self, PyObject *args)
                 min_dist = distances[j];
             }
         }
-        PyList_Append(result_list, PyLong_FromSize_t(filtered_indices[min_idx]));
-        distances[min_idx] = INT_MAX; // Mark as visited
+        PyObject *metadata_item = set->metadata[filtered_indices[min_idx]];
+        if (metadata_item == NULL)
+        {
+            PyErr_SetString(PyExc_RuntimeError, "Metadata item is NULL.");
+            continue;
+        }
+
+        Py_INCREF(metadata_item); // Since we are appending it to a list
+        PyList_Append(metadata_list, metadata_item);
+
+        // Prepare for next iteration
+        distances[min_idx] = INT_MAX;
     }
 
     free(filtered_indices);
     free(distances);
 
-    return result_list;
+    return metadata_list;
 }
 
 static PyObject *ffvec_advanced_query_py(PyObject *self, PyObject *args)
@@ -607,7 +624,15 @@ static PyObject *ffvec_advanced_query_py(PyObject *self, PyObject *args)
     }
 
     // Sort and return the results based on distances
-    PyObject *result_list = PyList_New(0);
+    PyObject *metadata_list = PyList_New(0);
+    if (!metadata_list)
+    {
+        free(query_vec);
+        free(filtered_indices);
+        free(distances);
+        return PyErr_NoMemory();
+    }
+
     for (size_t i = 0; i < top_k && i < filtered_size; i++)
     {
         size_t min_idx = 0;
@@ -620,17 +645,24 @@ static PyObject *ffvec_advanced_query_py(PyObject *self, PyObject *args)
                 min_dist = distances[j];
             }
         }
-        PyList_Append(result_list, PyLong_FromSize_t(filtered_indices[min_idx]));
-        distances[min_idx] = INT_MAX; // Mark as visited
+        PyObject *metadata_item = set->metadata[filtered_indices[min_idx]];
+        if (metadata_item == NULL)
+        {
+            PyErr_SetString(PyExc_RuntimeError, "Metadata item is NULL.");
+            continue;
+        }
+
+        Py_INCREF(metadata_item); // Since we are appending it to a list
+        PyList_Append(metadata_list, metadata_item);
+
+        distances[min_idx] = INT_MAX;
     }
 
-    free(query_vec);
-    free(quantized_weights);
-    free(weights);
     free(filtered_indices);
     free(distances);
+    free(query_vec);
 
-    return result_list;
+    return metadata_list;
 }
 
 static PyMethodDef VectorSet_methods[] = {

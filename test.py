@@ -36,18 +36,18 @@ e = (
     .data[0]
     .embedding
 )
-for _ in range(1_000_000):
-    vs.add(e, {"genre": "sci-fi", "year": 1977})
+# for _ in range(1_000_000):
+#     vs.add(e, {"genre": "sci-fi", "year": 1977})
 
-# for doc in docs:
-#     vec = (
-#         openai.embeddings.create(
-#             input=doc, model="text-embedding-3-small", dimensions=384
-#         )
-#         .data[0]
-#         .embedding
-#     )
-#     vs.add(vec, {"genre": "sci-fi", "year": 1977})
+for doc in docs:
+    vec = (
+        openai.embeddings.create(
+            input=doc, model="text-embedding-3-small", dimensions=384
+        )
+        .data[0]
+        .embedding
+    )
+    vs.add(vec, {"genre": "sci-fi", "year": 1977, 'text': doc})
 
 start = time.perf_counter()
 for _ in range(100):
@@ -56,5 +56,7 @@ for _ in range(100):
         {"genre": "sci-fi"},
         2,
     )
+
+
 print(f"Query took {((time.perf_counter() - start) / 100.0 * 1000):.2f}ms")
 print(out)
