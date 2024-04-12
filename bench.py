@@ -12,7 +12,7 @@ embeddings = np.random.rand(num_docs, dimension).astype("float32")
 
 # Initialize ffvec
 vs = ffvec.VectorSet()
-metadata = [{"genre": "sci-fi", "year": 1977}] * num_docs
+metadata = [{}] * num_docs
 for i in range(num_docs):
     vs.add(embeddings[i].tolist(), metadata[i])
 
@@ -45,7 +45,7 @@ query_vec = np.random.rand(1, dimension).astype("float32")
 # Benchmark ffvec
 start_ffvec = time.perf_counter()
 for _ in range(100):
-    vs_out = vs.query_with_metadata(query_vec[0].tolist(), {"genre": "sci-fi"}, 2)
+    vs_out = vs.query_with_metadata(query_vec[0].tolist(), {}, 2)
 time_ffvec = (time.perf_counter() - start_ffvec) / 100.0 * 1000
 
 # Benchmark FAISS Flat

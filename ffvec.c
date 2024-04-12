@@ -431,25 +431,34 @@ static PyObject *ffvec_query_py(PyObject *self, PyObject *args)
 
     size_t *filtered_indices = NULL;
     size_t filtered_size = 0;
-    Py_ssize_t pos = 0;
-    PyObject *key, *value;
-    while (PyDict_Next(metadata_filters, &pos, &key, &value))
-    {
-        for (size_t i = 0; i < set->index_size; i++)
+
+    if (PyDict_Size(metadata_filters) > 0) { // Check if metadata filters are provided
+        Py_ssize_t pos = 0;
+        PyObject *key, *value;
+        while (PyDict_Next(metadata_filters, &pos, &key, &value))
         {
-            if (PyObject_RichCompareBool(set->index[i].key, key, Py_EQ) &&
-                PyObject_RichCompareBool(set->index[i].value, value, Py_EQ))
+            for (size_t i = 0; i < set->index_size; i++)
             {
-                filtered_indices = (size_t *)realloc(filtered_indices, (filtered_size + set->index[i].size) * sizeof(size_t));
-                if (!filtered_indices)
+                if (PyObject_RichCompareBool(set->index[i].key, key, Py_EQ) &&
+                    PyObject_RichCompareBool(set->index[i].value, value, Py_EQ))
                 {
-                    free(query_vec);
-                    free(quantized_query);
-                    return PyErr_NoMemory();
+                    filtered_indices = (size_t *)realloc(filtered_indices, (filtered_size + set->index[i].size) * sizeof(size_t));
+                    if (!filtered_indices)
+                    {
+                        free(query_vec);
+                        free(quantized_query);
+                        return PyErr_NoMemory();
+                    }
+                    memcpy(filtered_indices + filtered_size, set->index[i].indices, set->index[i].size * sizeof(size_t));
+                    filtered_size += set->index[i].size;
                 }
-                memcpy(filtered_indices + filtered_size, set->index[i].indices, set->index[i].size * sizeof(size_t));
-                filtered_size += set->index[i].size;
             }
+        }
+    } else { // If no metadata filters, use all vectors
+        filtered_size = set->size;
+        filtered_indices = (size_t *)malloc(filtered_size * sizeof(size_t));
+        for (size_t i = 0; i < filtered_size; i++) {
+            filtered_indices[i] = i;
         }
     }
 
@@ -512,6 +521,7 @@ static PyObject *ffvec_query_py(PyObject *self, PyObject *args)
 
     return metadata_list;
 }
+
 
 static PyObject *ffvec_advanced_query_py(PyObject *self, PyObject *args)
 {
@@ -585,24 +595,32 @@ static PyObject *ffvec_advanced_query_py(PyObject *self, PyObject *args)
     size_t filtered_size = 0;
     Py_ssize_t pos = 0;
     PyObject *key, *value;
-    while (PyDict_Next(metadata_filters, &pos, &key, &value))
-    {
-        for (size_t i = 0; i < set->index_size; i++)
+    if (PyDict_Size(metadata_filters) > 0) { // Check if metadata filters are provided
+        Py_ssize_t pos = 0;
+        PyObject *key, *value;
+        while (PyDict_Next(metadata_filters, &pos, &key, &value))
         {
-            if (PyObject_RichCompareBool(set->index[i].key, key, Py_EQ) &&
-                PyObject_RichCompareBool(set->index[i].value, value, Py_EQ))
+            for (size_t i = 0; i < set->index_size; i++)
             {
-                filtered_indices = (size_t *)realloc(filtered_indices, (filtered_size + set->index[i].size) * sizeof(size_t));
-                if (!filtered_indices)
+                if (PyObject_RichCompareBool(set->index[i].key, key, Py_EQ) &&
+                    PyObject_RichCompareBool(set->index[i].value, value, Py_EQ))
                 {
-                    free(query_vec);
-                    free(weights);
-                    free(quantized_weights);
-                    return PyErr_NoMemory();
+                    filtered_indices = (size_t *)realloc(filtered_indices, (filtered_size + set->index[i].size) * sizeof(size_t));
+                    if (!filtered_indices)
+                    {
+                        free(query_vec);
+                        return PyErr_NoMemory();
+                    }
+                    memcpy(filtered_indices + filtered_size, set->index[i].indices, set->index[i].size * sizeof(size_t));
+                    filtered_size += set->index[i].size;
                 }
-                memcpy(filtered_indices + filtered_size, set->index[i].indices, set->index[i].size * sizeof(size_t));
-                filtered_size += set->index[i].size;
             }
+        }
+    } else { // If no metadata filters, use all vectors
+        filtered_size = set->size;
+        filtered_indices = (size_t *)malloc(filtered_size * sizeof(size_t));
+        for (size_t i = 0; i < filtered_size; i++) {
+            filtered_indices[i] = i;
         }
     }
 

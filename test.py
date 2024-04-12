@@ -50,9 +50,9 @@ for doc in docs:
 
 start = time.perf_counter()
 for _ in range(100):
-    out = vs.advanced_query(
+    out = vs.query(
         query_vec,
-        {"genre": "sci-fi"},
+        {},
         2,
     )
 
